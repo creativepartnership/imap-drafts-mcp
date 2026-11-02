@@ -1,0 +1,19 @@
+# ambienti virtuali
+venv/
+.venv/
+
+# build e cache
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+
+# archivi locali e configurazioni con credenziali
+*.tar.gz
+claude_desktop_config.json
+.env
+
+# macOS
+.DS_Store
