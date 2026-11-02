@@ -4,6 +4,8 @@
 
 Server MCP che permette a Claude (o a un altro client MCP) di cercare e leggere le email di una casella IMAP e di preparare nuovi messaggi **solo come bozze**. Non può inviare, spostare, cancellare o modificare i messaggi e non li segna come letti. Ogni bozza la rilegge e la invia una persona dal proprio client di posta.
 
+Se non vuoi nessuna scrittura, imposta `IMAP_READ_ONLY=true`: vedi [Modalità sola lettura](#modalità-sola-lettura).
+
 Sviluppato da [Creative Partnership Srl](https://www.cp-srl.it) per uso interno e distribuito a tutti con licenza MIT.
 
 ## Perché questo server
@@ -23,7 +25,7 @@ Un assistente AI che legge la posta legge anche testo scritto da sconosciuti, e 
 | `get_message` | Legge un messaggio: intestazioni, corpo in testo, elenco allegati |
 | `get_attachment_text` | Estrae il testo di un allegato (PDF, DOCX, XLSX, testo/CSV) |
 | `get_thread` | Ricostruisce la conversazione da Message-ID / References, anche con la Posta inviata se la indichi |
-| `create_draft` | Salva un messaggio di testo nelle Bozze, anche come risposta (con `In-Reply-To`/`References` e citazione opzionale). Non invia |
+| `create_draft` | Salva un messaggio di testo nelle Bozze, anche come risposta (con `In-Reply-To`/`References` e citazione opzionale). Non invia. Non disponibile in sola lettura |
 
 ## Installazione
 
@@ -36,7 +38,7 @@ Servono [uv](https://docs.astral.sh/uv/) e git. Aggiungi questo alla configurazi
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/creativepartnership/imap-drafts-mcp@v0.1.0",
+        "git+https://github.com/creativepartnership/imap-drafts-mcp@latest",
         "imap-drafts-mcp"
       ],
       "env": {
@@ -50,8 +52,18 @@ Servono [uv](https://docs.astral.sh/uv/) e git. Aggiungi questo alla configurazi
 }
 ```
 
-- Tieni l'etichetta di versione (`@v0.1.0`). Senza, ogni nuovo download prende quello che c'è sul ramo principale: un rischio inutile per un software che accede alla posta.
+- `@latest` segue ogni nuova versione: la ricevi al successivo riavvio del client, senza cambiare nulla.
+- Per aggiornare a mano, fissa una versione, per esempio `@v0.2.0`. Con `@latest` il nuovo codice accede alla tua posta senza che tu lo abbia controllato prima, quindi fissa la versione se per te è importante.
 - Se il client non trova `uvx`, usa il suo percorso assoluto come `command` (lo ottieni con `which uvx`).
+
+## Modalità sola lettura
+
+Aggiungi `"IMAP_READ_ONLY": "true"` a `env`. Lo strumento `create_draft` non viene registrato, quindi il modello non lo vede e non può essere convinto a usarlo, e il server non scrive nulla nella casella. Un valore diverso da true/false (valgono anche `1`/`0`, `yes`/`no`, `on`/`off`) impedisce l'avvio del server, così un errore di battitura non può lasciare attive le bozze.
+
+Due limiti da tenere presenti:
+
+- La garanzia riguarda questo server, non l'account. La password dà comunque pieno accesso alla casella, quindi va protetta allo stesso modo.
+- Se hai scelto questa modalità per sicurezza, fissa una versione invece di usare `@latest`. Altrimenti affidi la garanzia anche a tutte le versioni future.
 
 ## Configurazione
 
@@ -65,6 +77,7 @@ Servono [uv](https://docs.astral.sh/uv/) e git. Aggiungi questo alla configurazi
 | `IMAP_TIMEOUT` | `30` | Timeout in secondi |
 | `IMAP_MAX_BODY_CHARS` | `20000` | Massimo di caratteri restituiti per un corpo o un allegato |
 | `IMAP_MAX_MESSAGE_MB` | `25` | I messaggi più grandi non vengono scaricati |
+| `IMAP_READ_ONLY` | `false` | `true` disattiva `create_draft`. Vedi [Modalità sola lettura](#modalità-sola-lettura) |
 | `IMAP_FROM` | `IMAP_USER` | Mittente delle bozze. Obbligatoria se `IMAP_USER` non è un indirizzo email |
 | `IMAP_DRAFTS_FOLDER` | automatico | Nome della cartella Bozze, se il server non la segnala con `\Drafts` |
 | `IMAP_DRAFT_ALLOWED_DOMAINS` | nessun limite | Domini ammessi come destinatari, separati da virgola, es. `example.com,example.org` |
@@ -114,6 +127,14 @@ uv run pytest
 ```
 
 I test girano contro un finto server IMAP locale, quindi prova ogni nuova versione anche su una casella reale prima di farci affidamento.
+
+### Pubblicare una versione
+
+1. Aggiorna la versione in `pyproject.toml`, `src/imap_drafts_mcp/__init__.py` e `CHANGELOG.md`, poi lancia `uv lock`.
+2. Fai commit e push su `main`.
+3. Lancia `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+Il workflow Release esegue i test e, se passano, sposta il tag `latest` sulla nuova versione. Chi usa `@latest` la riceve al successivo riavvio del client, quindi provala su una casella reale prima del passo 3.
 
 ## Licenza
 

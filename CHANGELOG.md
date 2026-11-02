@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0 (2026-11-02)
+
+- New `IMAP_READ_ONLY=true` setting: `create_draft` is not registered, so the server is strictly read-only. An unrecognised value stops the server from starting.
+- New `latest` tag, moved automatically to each release. The recommended installation now uses `@latest`, and updates arrive when the client restarts. To update by hand, pin a version such as `@v0.2.0`.
+
 ## 0.1.0 (2026-11-02)
 
 First public version.

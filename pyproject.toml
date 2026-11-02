@@ -1,6 +1,6 @@
 [project]
 name = "imap-drafts-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "MCP server for IMAP mailboxes: read-only access plus drafts-only writing. It cannot send email."
 readme = "README.md"
 license = "MIT"

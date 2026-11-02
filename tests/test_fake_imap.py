@@ -151,10 +151,12 @@ class Handler(socketserver.StreamRequestHandler):
                 self.send(f"{tag} BAD unknown command\r\n")
 
 
-def call_tool_stdio(name, arguments):
-    """Chiama uno strumento dal server vero via stdio, come un client MCP."""
+def mcp_stdio(requests, **env):
+    """Parla col server vero via stdio, come un client MCP. Restituisce la
+    risposta a initialize e quelle alle richieste [(metodo, parametri)]."""
     p = subprocess.Popen([sys.executable, "-m", "imap_drafts_mcp"], text=True,
-                         stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+                         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                         env={**os.environ, **env})
 
     def send(msg):
         p.stdin.write(json.dumps({"jsonrpc": "2.0", **msg}) + "\n")
@@ -162,12 +164,12 @@ def call_tool_stdio(name, arguments):
         return json.loads(p.stdout.readline()) if "id" in msg else None
 
     try:
-        send({"id": 1, "method": "initialize", "params": {
+        init = send({"id": 1, "method": "initialize", "params": {
             "protocolVersion": "2025-06-18", "capabilities": {},
             "clientInfo": {"name": "test", "version": "0"}}})
         send({"method": "notifications/initialized"})
-        return send({"id": 2, "method": "tools/call", "params": {
-            "name": name, "arguments": arguments}})["result"]
+        return init["result"], [send({"id": i, "method": method, "params": params})
+                                for i, (method, params) in enumerate(requests, 2)]
     finally:
         p.stdin.close()
         p.wait(timeout=20)
@@ -298,8 +300,40 @@ def test_fake_imap():
     assert "LIST (SPECIAL-USE)" in COMMANDS
 
     # via MCP il messaggio d'errore arriva al modello (mcp 2.x lo nasconderebbe)
-    r = call_tool_stdio("create_draft", {"to": ["non-un-indirizzo"], "body": "b"})
+    call_draft = ("tools/call", {"name": "create_draft", "arguments": {
+        "to": ["x@example.org"], "body": "b"}})
+    _, (r,) = mcp_stdio([("tools/call", {"name": "create_draft", "arguments": {
+        "to": ["non-un-indirizzo"], "body": "b"}})])
+    r = r["result"]
     assert r["isError"] and "Invalid address" in r["content"][0]["text"], r
+
+    # di default le bozze sono attive
+    init, (tools,) = mcp_stdio([("tools/list", {})])
+    assert "create_draft" in [t["name"] for t in tools["result"]["tools"]]
+    assert "draft" in init["instructions"].lower()
+
+    # sola lettura: create_draft non esiste, la lettura funziona, nessun APPEND
+    n = len(APPENDED)
+    init, (tools, draft, search) = mcp_stdio(
+        [("tools/list", {}), call_draft,
+         ("tools/call", {"name": "search_messages", "arguments": {}})],
+        IMAP_READ_ONLY="true")
+    names = [t["name"] for t in tools["result"]["tools"]]
+    assert "create_draft" not in names and "search_messages" in names, names
+    assert "draft" not in init["instructions"].lower(), init["instructions"]
+    assert "error" in draft or draft["result"].get("isError"), draft
+    assert not search["result"].get("isError"), search
+    assert len(APPENDED) == n, "read-only mode wrote a message"
+
+    # IMAP_READ_ONLY esplicitamente false: bozze attive
+    _, (tools,) = mcp_stdio([("tools/list", {})], IMAP_READ_ONLY="false")
+    assert "create_draft" in [t["name"] for t in tools["result"]["tools"]]
+
+    # valore non riconosciuto: il server non parte, non si ripiega sulle bozze
+    bad = subprocess.run([sys.executable, "-m", "imap_drafts_mcp"], text=True,
+                         stdin=subprocess.DEVNULL, capture_output=True,
+                         env={**os.environ, "IMAP_READ_ONLY": "ture"})
+    assert bad.returncode != 0 and "IMAP_READ_ONLY" in bad.stderr, bad
 
     # unico comando di scrittura: APPEND, e solo verso Bozze
     allowed = {"CAPABILITY", "LOGIN", "LIST", "LIST (SPECIAL-USE)", "EXAMINE", "STATUS", "UID SEARCH",

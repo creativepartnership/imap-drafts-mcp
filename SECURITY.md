@@ -14,6 +14,7 @@ The project's main promise is that the server only reads the mailbox and writes 
 
 - any way to send email, or to make the server issue an IMAP command other than `EXAMINE`, `SEARCH`, `LIST`, `STATUS`, `FETCH` (with `BODY.PEEK`) or `APPEND`;
 - any way to `APPEND` outside the Drafts folder;
+- any way to create a draft, or use any other write command, with `IMAP_READ_ONLY=true`;
 - any way to change a message's flags, including marking it as read;
 - injection of IMAP commands or email headers through tool parameters;
 - a bypass of `IMAP_DRAFT_ALLOWED_DOMAINS`;

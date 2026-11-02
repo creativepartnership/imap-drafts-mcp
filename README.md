@@ -4,6 +4,8 @@
 
 An MCP server that lets Claude (or any MCP client) search and read an IMAP mailbox and prepare new messages **as drafts only**. It cannot send, move, delete or modify messages, and it does not mark them as read. A person reviews and sends every draft from their own mail client.
 
+If you want no writing at all, set `IMAP_READ_ONLY=true`: see [Read-only mode](#read-only-mode).
+
 Developed by [Creative Partnership Srl](https://www.cp-srl.it) for internal use and released to everyone under the MIT license.
 
 ## Why this server
@@ -23,7 +25,7 @@ An AI assistant that reads email also reads text written by strangers, and that 
 | `get_message` | Reads a message: headers, text body, list of attachments |
 | `get_attachment_text` | Extracts text from an attachment (PDF, DOCX, XLSX, text/CSV) |
 | `get_thread` | Rebuilds a conversation from Message-ID / References, including the Sent folder if you pass it |
-| `create_draft` | Saves a plain-text message in Drafts, optionally as a reply (with `In-Reply-To`/`References` and optional quoting). It does not send |
+| `create_draft` | Saves a plain-text message in Drafts, optionally as a reply (with `In-Reply-To`/`References` and optional quoting). It does not send. Not available in read-only mode |
 
 ## Installation
 
@@ -36,7 +38,7 @@ You need [uv](https://docs.astral.sh/uv/) and git. Add this to your MCP client c
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/creativepartnership/imap-drafts-mcp@v0.1.0",
+        "git+https://github.com/creativepartnership/imap-drafts-mcp@latest",
         "imap-drafts-mcp"
       ],
       "env": {
@@ -50,8 +52,18 @@ You need [uv](https://docs.astral.sh/uv/) and git. Add this to your MCP client c
 }
 ```
 
-- Keep the version tag (`@v0.1.0`). Without it, each new download takes whatever is on the main branch, which is a needless risk for software with access to your mail.
+- `@latest` follows each new release: you get it the next time the client restarts, without changing anything.
+- To update by hand instead, pin a version, for example `@v0.2.0`. With `@latest`, new code gets access to your mail without you reviewing it first, so pin a version if that matters to you.
 - If the client cannot find `uvx`, use its absolute path as `command` (run `which uvx` to get it).
+
+## Read-only mode
+
+Add `"IMAP_READ_ONLY": "true"` to `env`. The `create_draft` tool is then not registered, so the model does not see it and cannot be persuaded to use it, and the server writes nothing to the mailbox. A value other than true/false (`1`/`0`, `yes`/`no`, `on`/`off` also work) stops the server from starting, so a typo cannot leave drafts enabled.
+
+Two limits to keep in mind:
+
+- The guarantee covers this server, not the account. The password still gives full access to the mailbox, so protect it just the same.
+- If you chose this mode for security, pin a version instead of using `@latest`. Otherwise you are also relying on every future release to keep the guarantee.
 
 ## Configuration
 
@@ -65,6 +77,7 @@ You need [uv](https://docs.astral.sh/uv/) and git. Add this to your MCP client c
 | `IMAP_TIMEOUT` | `30` | Timeout in seconds |
 | `IMAP_MAX_BODY_CHARS` | `20000` | Maximum characters returned for a body or attachment |
 | `IMAP_MAX_MESSAGE_MB` | `25` | Larger messages are not downloaded |
+| `IMAP_READ_ONLY` | `false` | `true` disables `create_draft`. See [Read-only mode](#read-only-mode) |
 | `IMAP_FROM` | `IMAP_USER` | Sender of drafts. Required if `IMAP_USER` is not an email address |
 | `IMAP_DRAFTS_FOLDER` | automatic | Drafts folder name, if the server does not mark it with `\Drafts` |
 | `IMAP_DRAFT_ALLOWED_DOMAINS` | no limit | Comma-separated domains allowed as recipients, e.g. `example.com,example.org` |
@@ -114,6 +127,14 @@ uv run pytest
 ```
 
 The tests run against a fake local IMAP server, so try a new version on a real mailbox as well before relying on it.
+
+### Releasing
+
+1. Update the version in `pyproject.toml`, `src/imap_drafts_mcp/__init__.py` and `CHANGELOG.md`, then run `uv lock`.
+2. Commit and push to `main`.
+3. Run `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+The Release workflow runs the tests and, if they pass, moves the `latest` tag to the new version. Everyone using `@latest` gets it at their next client restart, so try it on a real mailbox before step 3.
 
 ## License
 
